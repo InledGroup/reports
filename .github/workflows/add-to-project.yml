@@ -12,8 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # NOTE: Adding items to an org ProjectV2 requires a token with `project` scope,
-      # so GITHUB_TOKEN cannot be used here. Store a fine-grained PAT (or classic PAT
-      # with `project` + `repo` scopes) as the PROJECT_PAT secret.
+      # so GITHUB_TOKEN cannot be used here. Store a PAT with organization Projects
+      # read/write access as the PROJECT_PAT secret.
       - name: Add issue to project
         id: add-project
         env:
@@ -25,33 +25,20 @@ jobs:
                 item { id }
               }
             }' \
-            -f projectId="PVT_kwDOEGtWb84Bbe-_" \
+            -f projectId="PVT_kwDODfyzbM4BY-xQ" \
             -f issueId="${{ github.event.issue.node_id }}" \
             --jq '.data.addProjectV2ItemById.item.id')
           echo "itemId=$ITEM_ID" >> "$GITHUB_OUTPUT"
 
-      - name: Classify issue (Tipo field)
+      # The issue's labels (bug / idea / task) show up automatically in the
+      # board's built-in Labels field, so the item is classified by type.
+      # Here we just set Status = "To triage" so it lands in the Triage view.
+      - name: Set Status (To triage)
         if: steps.add-project.outputs.itemId != ''
         env:
           GH_TOKEN: ${{ secrets.PROJECT_PAT }}
           ITEM_ID: ${{ steps.add-project.outputs.itemId }}
-          ISSUE_LABELS: ${{ join(github.event.issue.labels.*.name, ',') }}
         run: |
-          PROJECT_ID="PVT_kwDOEGtWb84Bbe-_"
-          # Tipo field of the "Inled Issues and Errors" board
-          FIELD_ID="PVTSSF_lADOEGtWb84Bbe-_zhWPMX0"
-          # Options: Error=0fad1b2f, Idea=cdb185ea, Ayuda=bb79688a
-          LABELS_LOWER=$(printf '%s' "$ISSUE_LABELS" | tr '[:upper:]' '[:lower:]')
-
-          OPTION_ID=""
-          case ",$LABELS_LOWER," in
-            *,bug,*|*,error,*)     OPTION_ID="0fad1b2f" ;; # Error
-            *,idea,*|*,enhancement,*) OPTION_ID="cdb185ea" ;; # Idea
-            *,task,*|*,suggestion,*|*,help,*) OPTION_ID="bb79688a" ;; # Ayuda
-          esac
-
-          [ -z "$OPTION_ID" ] && echo "No matching label, skipping classification" && exit 0
-
           gh api graphql -f query='
             mutation($pid: ID!, $iid: ID!, $fid: ID!, $oid: String!) {
               updateProjectV2ItemFieldValue(input: {
@@ -59,6 +46,8 @@ jobs:
                 value: { singleSelectOptionId: $oid }
               }) { projectV2Item { id } }
             }' \
-            -f pid="$PROJECT_ID" -f iid="$ITEM_ID" \
-            -f fid="$FIELD_ID" -f oid="$OPTION_ID"
-          echo "Classified issue OK"
+            -f pid="PVT_kwDODfyzbM4BY-xQ" \
+            -f iid="$ITEM_ID" \
+            -f fid="PVTSSF_lADODfyzbM4BY-xQzhUAs7k" \
+            -f oid="f971fb55"
+          echo "Set Status=To triage OK"
