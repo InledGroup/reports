@@ -35,5 +35,10 @@ jobs:
           MSG=$(printf '%s **%s: %s**\n📂 Repo: `%s`\n👤 %s\n🏷️ Labels: %s\n\n%s\n\n%s' \
             "$ICON" "$TYPE" "$ISSUE_TITLE" "$REPO" "$ISSUE_AUTHOR" "$ISSUE_LABELS" "$SNIPPET" "$ISSUE_URL")
 
-          jq -n --arg content "$MSG" '{content: $content}' | \
-            curl -sS -X POST "$DISCORD_WEBHOOK" -H "Content-Type: application/json" -d @-
+          HTTP_CODE=$(jq -n --arg content "$MSG" '{content: $content}' | \
+            curl -sS -o /tmp/discord_resp.json -w '%{http_code}' -X POST "$DISCORD_WEBHOOK" \
+            -H "Content-Type: application/json" -d @-)
+          echo "Discord response: $HTTP_CODE"
+          cat /tmp/discord_resp.json
+          # Fail the step if Discord rejected the message (4xx/5xx)
+          [[ "$HTTP_CODE" =~ ^2 ]] || exit 1
